@@ -1,0 +1,37 @@
+# 環境変数
+.env
+.env.*
+!.env.example
+
+# MCP関連ファイル
+.mcp/
+MCP_CONNECTION_GUIDE.md
+install_local_servers.sh
+
+# 依存関係
+node_modules/
+
+# ビルド出力
+.next/
+out/
+build/
+dist/
+
+# キャッシュ
+.cache/
+.npm/
+.eslintcache
+
+# ログ
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# エディタ設定
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store 
