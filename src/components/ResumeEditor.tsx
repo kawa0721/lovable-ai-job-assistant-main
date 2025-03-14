@@ -1,9 +1,8 @@
 import { Button } from "@/components/ui/button";
 import { PencilIcon, RefreshCw, Edit } from "lucide-react";
-import { MarkdownEditor } from "@/components/resume/editor/MarkdownEditor";
+import { HtmlRichEditor } from "@/components/resume/editor/HtmlRichEditor";
 import { FormData } from "@/types/form";
 import { useEffect, useState } from "react";
-
 
 interface ResumeEditorProps {
   formData: FormData;
@@ -24,35 +23,45 @@ export const ResumeEditor = ({
   onRegenerate,
   onEditContent,
 }: ResumeEditorProps) => {
-  // 編集中のコンテンツを保持するローカルステート
   const [editorContent, setEditorContent] = useState<string>("");
-  // 編集可能フラグを内部でも管理（強制的に再レンダリングさせるため）
   const [internalIsEditing, setInternalIsEditing] = useState<boolean>(isEditing);
-  
-  // デバッグ用: formDataが変更された時のログ
+
   useEffect(() => {
     console.log("ResumeEditor - formData updated:", formData);
     console.log("ResumeEditor - description:", formData.description);
   }, [formData]);
-  
-  // デバッグ用: isEditingが変更された時のログ
+
   useEffect(() => {
     console.log("ResumeEditor - isEditing changed:", isEditing);
-    // 外部のisEditingが変更されたら内部状態も同期する
     setInternalIsEditing(isEditing);
   }, [isEditing]);
-  
-  // formDataが変更されたとき、またはisEditingが変更されたときにeditorContentを更新
+
   useEffect(() => {
-    const formattedContent = formatTemplateContent(formData);
-    console.log("ResumeEditor - Updating editorContent:", {
-      isEditing,
-      internalIsEditing,
-      currentContent: editorContent,
-      newFormattedContent: formattedContent
-    });
-    setEditorContent(formattedContent);
-  }, [formData, isEditing, internalIsEditing]); // eslint-disable-line react-hooks/exhaustive-deps
+    console.log("ResumeEditor - formData or editing state changed");
+    if (formData) {
+      const formattedContent = formatTemplateContent(formData);
+      console.log("ResumeEditor - Updating editorContent:", {
+        isEditing,
+        currentContent: editorContent,
+        newContent: formattedContent ? formattedContent.substring(0, 50) + "..." : "empty",
+        formattedContentLength: formattedContent.length,
+      });
+
+      if (formattedContent && formattedContent.trim() !== "") {
+        console.log("ResumeEditor - Setting new editor content");
+        setEditorContent(formattedContent);
+      }
+    }
+  }, [formData, isEditing]);
+
+  useEffect(() => {
+    console.log("ResumeEditor - Component mounted, initializing content");
+    if (formData) {
+      const initialContent = formatTemplateContent(formData);
+      console.log("ResumeEditor - Initial content length:", initialContent.length);
+      setEditorContent(initialContent);
+    }
+  }, []);
 
   const formatDate = (date: string) => {
     if (!date) return "";
@@ -68,17 +77,17 @@ export const ResumeEditor = ({
   };
 
   const formatTemplateContent = (data: FormData): string => {
-    // 学歴履歴を整形
-    const educationHistories = data.educationHistories ? data.educationHistories
-      .map((edu, index) => 
-        `### ${edu.schoolName || ""}
+    const educationHistories = data.educationHistories
+      ? data.educationHistories
+          .map((edu, index) => 
+            `### ${edu.schoolName || ""}
 **卒業年月:** ${formatDate(edu.graduationDate)}  
 **学部/学科:** ${edu.department || ""}  
 ${edu.faculty ? `**学部:** ${edu.faculty}  ` : ""}
 ${edu.major ? `**専攻:** ${edu.major}` : ""}`
-      ).join("\n\n") : "";
+          ).join("\n\n")
+      : "";
 
-    // テンプレートの生成（職務経歴書形式に整形）
     const templateContent = `# 職務経歴書
 
 ## 基本情報
@@ -136,43 +145,44 @@ ${data.description || "仕事内容を入力してください"}`;
     return templateContent;
   };
 
-  // コンテンツが変更されたときの処理
   const handleEditorChange = (content: string) => {
+    if (!content) {
+      console.log("ResumeEditor - Empty content received in handleEditorChange");
+      return;
+    }
+
     console.log("ResumeEditor - handleEditorChange called with content length:", content.length);
+
+    if (content === editorContent) {
+      console.log("ResumeEditor - Content unchanged, skipping update");
+      return;
+    }
+
     setEditorContent(content);
-    // 編集モードの場合のみ親コンポーネントに通知
+
     if (internalIsEditing) {
-      const parsedContent = parseTemplateContent(content);
-      console.log("ResumeEditor - Calling onEdit with parsed content:", parsedContent);
-      onEdit(parsedContent);
+      try {
+        const parsedContent = parseTemplateContent(content);
+        console.log("ResumeEditor - Calling onEdit with parsed content length:", parsedContent.length);
+        onEdit(parsedContent);
+      } catch (error) {
+        console.error("ResumeEditor - Error parsing template content:", error);
+      }
     }
   };
 
-  // 編集完了ボタンが押されたときの処理
   const handleFinishEdit = () => {
     console.log("ResumeEditor - handleFinishEdit called");
-    // 最後にパースして親コンポーネントに通知してから編集モードを終了
     const parsedContent = parseTemplateContent(editorContent);
     console.log("ResumeEditor - Final content for save:", parsedContent);
     onEdit(parsedContent);
-    // 編集モードを終了し、保存処理を実行
     console.log("ResumeEditor - Calling onFinishEditing");
     onFinishEditing();
   };
 
   return (
     <div className="space-y-4">
-      <div className="bg-white p-4 rounded-lg border-2 border-slate-700 shadow-md">
-        <h3 className="font-medium mb-2 text-gray-900">職務経歴書</h3>
-        <MarkdownEditor
-          content={editorContent}
-          onChange={handleEditorChange}
-          readOnly={!internalIsEditing}
-          key={`editor-${internalIsEditing}`} // 編集モードが変わったら強制的に再マウント
-          initialMode="rich"
-        />
-      </div>
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap gap-2 mb-4">
         <Button variant="outline" className="flex-1" onClick={onEditContent}>
           <Edit className="w-4 h-4 mr-2" />
           入力内容を編集
@@ -189,6 +199,24 @@ ${data.description || "仕事内容を入力してください"}`;
           <RefreshCw className="w-4 h-4 mr-2" />
           再生成する
         </Button>
+      </div>
+      <div className="bg-white p-4 rounded-lg border-2 border-slate-700 shadow-md">
+        <h3 className="font-medium mb-2 text-gray-900">職務経歴書</h3>
+        {editorContent ? (
+          <HtmlRichEditor
+            initialContent={editorContent}
+            value={editorContent}
+            onChange={handleEditorChange}
+            readOnly={!internalIsEditing}
+            disabled={!internalIsEditing}
+            placeholder="ここに職務経歴書の内容が表示されます..."
+            key={`editor-${internalIsEditing}-${formData?.id || "new"}`}
+          />
+        ) : (
+          <div className="text-gray-500 p-4 text-center">
+            コンテンツを読み込み中...
+          </div>
+        )}
       </div>
     </div>
   );
